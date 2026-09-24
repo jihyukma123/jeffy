@@ -1,0 +1,12 @@
+{
+  "name": "jeffy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx minimal_agent.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "tsx": "^4.23.13"
+  }
+}
