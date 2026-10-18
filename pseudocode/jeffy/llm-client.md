@@ -2,24 +2,24 @@
 
 실제 코드: [jeffy/llm-client.ts](../../jeffy/llm-client.ts)
 
-`createLlmClient()`는 인증정보·모델 설정·도구 정의를 기억하는 모델 호출 함수를 반환합니다. 호출 함수의 실제 이름은 `callCodex`이고, 다른 모듈에는 `callModel`이라는 이름으로 전달됩니다.
+`createLlmClient()`는 Gateway 설정(`baseUrl`, `gatewayToken`, `model`)과 도구 정의를 기억하는 모델 호출 함수 `callModel`을 반환합니다.
 
 **입력과 출력**
 
-- 생성 입력: 인증정보, 선택적인 모델 이름과 지침, 도구 정의 목록.
-- 생성 출력: `callCodex(inputItems)` 함수.
+- 생성 입력: `baseUrl`, `gatewayToken`, `model`, 선택적인 `instructions`, 도구 정의 목록.
+- 생성 출력: `callModel(inputItems)` 함수.
 - 호출 입력: 지금까지 누적된 모델 입력 목록 `inputItems`.
 - 호출 출력: `{ output, outputText }` 형태의 `ModelTurn`.
 
 ```text
 createLlmClient(설정, 도구 정의):
-    다음 callCodex 함수를 만들어 반환한다
+    다음 callModel 함수를 만들어 반환한다
 
-    callCodex(inputItems):
-        토큰이나 계정 ID가 없으면 오류를 발생시킨다
+    callModel(inputItems):
+        baseUrl, gatewayToken, model 중 하나라도 없으면 오류를 발생시킨다
 
-        인증 헤더와 다음 본문으로 모델에 HTTP 요청을 보낸다:
-            model = 설정.model 또는 기존 기본 모델
+        Gateway 토큰 인증 헤더와 다음 본문으로 Gateway(`${baseUrl}/responses`)에 HTTP 요청을 보낸다:
+            model = 설정.model
             instructions = 설정.instructions 또는 기본 지침
             tools = 도구 정의
             input = inputItems
@@ -79,20 +79,3 @@ handleSseLine(줄):
 ```
 
 이 모듈은 출력 항목을 모아 반환합니다. 그중 도구 호출을 찾아 실행하거나 다시 모델을 부르는 일은 agent loop에서 처리합니다. 텍스트 조각은 이곳에서 모으고, 터미널 출력은 최종 반환 이후에 이루어집니다.
-
-**별도로 호출하는 로그인 보조 함수**
-
-현재 `minimal_agent.ts`와 `jeffy()`는 아래 로그인 함수를 호출하지 않습니다.
-
-```text
-loginAndRun():
-    기기 인증 정보를 받는다                        // getDeviceCode
-    인증 페이지 주소와 사용자 코드를 출력한다
-    지정된 간격으로 인증 완료를 확인한다           // pollDeviceAuth
-        인증 대기 응답이면 계속 확인한다
-        인증 성공이면 인증 코드를 받는다
-        다른 오류이면 실패한다
-    인증 코드를 토큰으로 교환한다                 // exchangeToken
-    토큰 payload에서 계정 ID를 꺼낸다             // extractAccountId
-    인증 성공, 토큰, 계정 ID를 출력한다
-```

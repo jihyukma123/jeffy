@@ -1,5 +1,8 @@
 # Agent 개발 관련 생각들
 
+실행 환경과 Cloudflare OpenAI Gateway 연결 방법은
+[docs/cloudflare-openai-gateway.md](docs/cloudflare-openai-gateway.md)를 참고한다.
+
 ## 과거 사례로부터의 학습?
 
 표준화 -> 같은 문제를 반복적으로 풀지 않기 위해서 하는 것.

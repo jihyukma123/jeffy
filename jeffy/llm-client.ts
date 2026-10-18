@@ -11,33 +11,33 @@ export type ModelTurn = {
 };
 
 export type LlmClientOptions = {
-  accessToken: string;
-  chatgptAccountId: string;
-  model?: string;
+  baseUrl: string;
+  gatewayToken: string;
+  model: string;
   instructions?: string;
 };
 
 export function createLlmClient(options: LlmClientOptions, tools: ToolDefinition[]) {
-  const { accessToken, chatgptAccountId } = options;
+  const baseUrl = options.baseUrl.replace(/\/+$/, "");
 
-  return async function callCodex(inputItems: unknown[]): Promise<ModelTurn> {
-    if (!accessToken || !chatgptAccountId) {
-      throw new Error("accessToken과 chatgptAccountId를 먼저 설정하세요.");
+  return async function callModel(inputItems: unknown[]): Promise<ModelTurn> {
+    if (!baseUrl || !options.gatewayToken || !options.model) {
+      throw new Error(
+        "OPENAI_BASE_URL, GATEWAY_TOKEN, OPENAI_MODEL을 먼저 설정하세요.",
+      );
     }
 
     const response = await fetch(
-      "https://chatgpt.com/backend-api/codex/responses",
+      `${baseUrl}/responses`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "chatgpt-account-id": chatgptAccountId,
-          "OpenAI-Beta": "responses=experimental",
+          Authorization: `Bearer ${options.gatewayToken}`,
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
         body: JSON.stringify({
-          model: options.model ?? "gpt-5.6-terra",
+          model: options.model,
           store: false,
           stream: true,
           instructions: options.instructions ?? "You are a helpful assistant.",
@@ -157,69 +157,5 @@ export function createLlmClient(options: LlmClientOptions, tools: ToolDefinition
       outputText,
     };
   };
-}
-
-const CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
-
-async function getDeviceCode() {
-  const res = await fetch("https://auth.openai.com/api/accounts/deviceauth/usercode", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ client_id: CODEX_CLIENT_ID }),
-  });
-  if (!res.ok) throw new Error(`User code request failed: ${res.status}`);
-  return (await res.json()) as { device_auth_id: string; user_code: string; interval: number };
-}
-
-async function pollDeviceAuth(deviceAuthId: string, userCode: string, intervalSeconds: number) {
-  const pollInterval = Math.max(1, intervalSeconds) * 1000;
-  while (true) {
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
-    const res = await fetch("https://auth.openai.com/api/accounts/deviceauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device_auth_id: deviceAuthId, user_code: userCode }),
-    });
-    if (res.ok) {
-      return (await res.json()) as { authorization_code: string; code_verifier: string };
-    }
-    if (res.status !== 403 && res.status !== 404) {
-      throw new Error(`Device auth polling failed: ${res.status}`);
-    }
-  }
-}
-
-async function exchangeToken(authorizationCode: string, codeVerifier: string) {
-  const res = await fetch("https://auth.openai.com/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: CODEX_CLIENT_ID,
-      code: authorizationCode,
-      code_verifier: codeVerifier,
-      redirect_uri: "https://auth.openai.com/deviceauth/callback",
-    }),
-  });
-  if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
-  return (await res.json()) as { access_token: string; refresh_token: string; expires_in: number };
-}
-
-function extractAccountId(accessToken: string): string {
-  const payload = JSON.parse(Buffer.from(accessToken.split(".")[1], "base64").toString());
-  const accountId = payload["https://api.openai.com/auth"]?.chatgpt_account_id;
-  if (!accountId) throw new Error("chatgpt_account_id not found in token payload");
-  return accountId;
-}
-
-export async function loginAndRun() {
-  const device = await getDeviceCode();
-  console.log("인증 페이지: https://auth.openai.com/codex/device");
-  console.log(`코드: ${device.user_code}`);
-  const authCode = await pollDeviceAuth(device.device_auth_id, device.user_code, device.interval || 5);
-  const token = await exchangeToken(authCode.authorization_code, authCode.code_verifier);
-  console.log("인증 성공!");
-  console.log("Access Token:", token.access_token);
-  console.log("Account ID:", extractAccountId(token.access_token));
 }
 

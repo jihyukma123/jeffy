@@ -23,8 +23,9 @@ export type JeffyResult = {
  *
  * const result = await jeffy({
  *   input: "package.json을 읽고 설명해줘",
- *   accessToken,
- *   chatgptAccountId,
+ *   baseUrl: "https://your-worker.example.workers.dev/v1",
+ *   gatewayToken,
+ *   model: "your-api-model",
  *   instructions: "한국어로 간결하게 답하세요.",
  * });
  */

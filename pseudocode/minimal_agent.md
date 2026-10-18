@@ -6,15 +6,19 @@
 
 **입력과 출력**
 
-- 입력: 코드에 설정한 인증정보, 터미널에서 받은 세션 ID와 질문.
+- 입력: 환경 변수(OPENAI_BASE_URL, GATEWAY_TOKEN, OPENAI_MODEL), 터미널에서 받은 세션 ID와 질문.
 - 출력: 최종 답변. 실패하면 오류 메시지와 실패 종료 코드.
 - 호출하는 모듈: `jeffy/index.ts`.
 
 ```text
-accessToken = 코드에 설정한 토큰
-chatgptAccountId = 코드에 설정한 계정 ID
+baseUrl = process.env.OPENAI_BASE_URL
+gatewayToken = process.env.GATEWAY_TOKEN
+model = process.env.OPENAI_MODEL
 
 main():
+    baseUrl, gatewayToken, model 중 하나라도 비어 있으면:
+        .env.local 설정 안내와 함께 오류를 발생시킨다
+
     터미널 입출력을 연다
 
     try:
@@ -27,8 +31,9 @@ main():
         결과 = jeffy({
             input: 질문,
             sessionId: 세션 ID가 비어 있으면 생략,
-            accessToken,
-            chatgptAccountId
+            baseUrl,
+            gatewayToken,
+            model
         })
 
         결과.answer를 출력한다
@@ -41,5 +46,3 @@ main()을 실행한다
     오류 메시지를 출력한다
     프로세스 종료 코드를 1로 설정한다
 ```
-
-로그인 보조 함수는 `llm-client.ts`에 있지만, 현재 이 진입점에서 호출하지 않습니다.

@@ -6,8 +6,8 @@
 
 **입력과 출력**
 
-- 필수 입력: `input`, `accessToken`, `chatgptAccountId`.
-- 선택 입력: `sessionId`, `model`, `instructions`, `maximumTurns`, `workspaceRoot`, `conversationsDirectory`.
+- 필수 입력: `input`, `baseUrl`, `gatewayToken`, `model`.
+- 선택 입력: `sessionId`, `instructions`, `maximumTurns`, `workspaceRoot`, `conversationsDirectory`.
 - 출력: `{ sessionId, answer }`.
 - 호출하는 모듈: session manager, tool calling, LLM client, agent loop.
 
