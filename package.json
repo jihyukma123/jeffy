@@ -18,5 +18,8 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "wrangler": "^4.151.1"
+  },
+  "dependencies": {
+    "openai": "^7.38.0"
   }
 }

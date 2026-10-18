@@ -1,3 +1,5 @@
+import OpenAI from "openai";
+import type { ResponseInput } from "openai/resources/responses/responses";
 import type { ToolCall, ToolDefinition } from "./tool-calling.js";
 
 export type ModelOutputItem = ToolCall | {
@@ -20,124 +22,63 @@ export type LlmClientOptions = {
 export function createLlmClient(options: LlmClientOptions, tools: ToolDefinition[]) {
   const baseUrl = options.baseUrl.replace(/\/+$/, "");
 
-  return async function callModel(inputItems: unknown[]): Promise<ModelTurn> {
-    if (!baseUrl || !options.gatewayToken || !options.model) {
-      throw new Error(
-        "OPENAI_BASE_URL, GATEWAY_TOKEN, OPENAI_MODEL을 먼저 설정하세요.",
-      );
-    }
-
-    const response = await fetch(
-      `${baseUrl}/responses`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${options.gatewayToken}`,
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify({
-          model: options.model,
-          store: false,
-          stream: true,
-          instructions: options.instructions ?? "You are a helpful assistant.",
-          tools,
-          input: inputItems,
-        }),
-      },
+  if (!baseUrl || !options.gatewayToken || !options.model) {
+    throw new Error(
+      "OPENAI_BASE_URL, GATEWAY_TOKEN, OPENAI_MODEL을 먼저 설정하세요.",
     );
+  }
 
-    if (!response.ok) {
-      throw new Error(
-        `Request failed (${response.status}): ${await response.text()}`,
-      );
-    }
+  const client = new OpenAI({
+    apiKey: options.gatewayToken,
+    baseURL: baseUrl,
+    // The previous fetch implementation made one request per model turn.
+    maxRetries: 0,
+  });
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("Response body is not readable");
-    }
+  return async function callModel(inputItems: unknown[]): Promise<ModelTurn> {
+    const stream = await client.responses.create({
+      model: options.model,
+      store: false,
+      stream: true,
+      instructions: options.instructions ?? "You are a helpful assistant.",
+      tools,
+      input: inputItems as ResponseInput,
+    });
 
-    const decoder = new TextDecoder();
-
-    let buffer = "";
     let outputText = "";
     let completedOutput: ModelOutputItem[] | undefined;
     const completedItems: ModelOutputItem[] = [];
     const observedEventTypes = new Set<string>();
 
-    function handleSseLine(line: string): void {
-      if (!line.startsWith("data:")) return;
+    for await (const event of stream) {
+      observedEventTypes.add(event.type);
 
-      const data = line.slice(5).trimStart();
-      if (!data || data === "[DONE]") return;
+      switch (event.type) {
+        case "error":
+          throw new Error(`Model response failed: ${event.message}`);
 
-      let event: Record<string, any>;
-      try {
-        event = JSON.parse(data) as Record<string, any>;
-      } catch (error) {
-        throw new Error(
-          `Failed to parse an SSE event: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        case "response.failed":
+          throw new Error(
+            `Model response failed: ${event.response.error?.message ?? "unknown error"}`,
+          );
+
+        case "response.incomplete":
+          throw new Error(
+            `Model response incomplete: ${event.response.incomplete_details?.reason ?? "unknown reason"}`,
+          );
+
+        case "response.output_text.delta":
+          outputText += event.delta;
+          break;
+
+        case "response.output_item.done":
+          completedItems.push(event.item as unknown as ModelOutputItem);
+          break;
+
+        case "response.completed":
+          completedOutput = event.response.output as unknown as ModelOutputItem[];
+          break;
       }
-
-      if (typeof event.type === "string") {
-        observedEventTypes.add(event.type);
-      }
-
-      if (
-        event.type === "error" ||
-        event.type === "response.failed" ||
-        event.type === "response.incomplete"
-      ) {
-        const message =
-          typeof event.error?.message === "string"
-            ? event.error.message
-            : typeof event.message === "string"
-              ? event.message
-              : JSON.stringify(event);
-        throw new Error(`Model response failed: ${message}`);
-      }
-
-      if (
-        event.type === "response.output_text.delta" &&
-        typeof event.delta === "string"
-      ) {
-        outputText += event.delta;
-      }
-
-      if (
-        event.type === "response.output_item.done" &&
-        event.item
-      ) {
-        completedItems.push(event.item as ModelOutputItem);
-      }
-
-      if (
-        event.type === "response.completed" &&
-        Array.isArray(event.response?.output)
-      ) {
-        completedOutput = event.response.output as ModelOutputItem[];
-      }
-    }
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        handleSseLine(line);
-      }
-    }
-
-    buffer += decoder.decode();
-    for (const line of buffer.split("\n")) {
-      handleSseLine(line);
     }
 
     const output =
@@ -148,7 +89,7 @@ export function createLlmClient(options: LlmClientOptions, tools: ToolDefinition
     if (output.length === 0 && outputText.length === 0) {
       const observed = [...observedEventTypes].join(", ") || "none";
       throw new Error(
-        `Model returned no recognized output. Observed SSE events: ${observed}`,
+        `Model returned no recognized output. Observed stream events: ${observed}`,
       );
     }
 
@@ -158,4 +99,3 @@ export function createLlmClient(options: LlmClientOptions, tools: ToolDefinition
     };
   };
 }
-
