@@ -48,13 +48,13 @@ minimal_agent.ts                  터미널에서 질문을 받고 답변을 출
 
 | 이름 | 내용 | 사용하는 곳 |
 |---|---|---|
-| `messages` | 사용자와 assistant의 텍스트 대화 | index가 추가하고 session manager가 저장 |
+| `messages` | 사용자와 assistant의 대화 및 도구 호출/결과 trace | index가 추가하고 session manager가 저장 |
 | `inputItems` | 대화 기록을 모델 형식으로 바꾼 뒤, 현재 실행의 모델 출력과 도구 결과를 누적한 목록 | agent loop가 구성하고 LLM client에 전달 |
 | `ModelTurn` | 모델 출력 항목 목록 `output`과 누적 답변 텍스트 `outputText` | LLM client가 반환하고 agent loop가 처리 |
 | `ToolCall` | 도구 이름, JSON 문자열 인자, 호출 ID | 모델 출력에서 찾아 tool calling에 전달 |
 | `function_call_output` | 도구 실행 결과와 대응하는 호출 ID | agent loop가 만들어 다음 모델 요청에 포함 |
 
-`messages`는 파일에 남습니다. `inputItems`는 `runAgent()` 실행 중에만 유지됩니다. 도구 호출과 결과는 현재 실행에서 모델이 보지만, 세션 파일에는 저장되지 않습니다.
+`messages`는 파일에 남습니다. 이제 도구 호출(`tool_call`)과 결과(`tool_result`)도 `messages`에 보존되어 멀티턴 대화 시 모델이 이전 턴의 도구 실행 이력을 유지합니다. `inputItems`는 `runAgent()` 실행 중에 모델 규격으로 변환되어 사용되는 목록입니다.
 
 **관심사에 따라 살펴볼 위치**
 

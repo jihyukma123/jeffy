@@ -8,23 +8,49 @@ export type AgentLoopOptions = {
   maximumTurns?: number;
 };
 
+export type AgentRunResult = {
+  answer: string;
+  newMessages: ConversationMessage[];
+};
+
+export function conversationMessagesToInputItems(
+  messages: ConversationMessage[],
+): unknown[] {
+  return messages.map((message) => {
+    switch (message.type) {
+      case "user":
+        return {
+          role: "user",
+          content: [{ type: "input_text", text: message.text }],
+        };
+      case "assistant":
+        return {
+          role: "assistant",
+          content: [{ type: "output_text", text: message.text }],
+        };
+      case "tool_call":
+        return {
+          type: "function_call",
+          call_id: message.call_id,
+          name: message.name,
+          arguments: message.arguments,
+        };
+      case "tool_result":
+        return {
+          type: "function_call_output",
+          call_id: message.call_id,
+          output: message.output,
+        };
+    }
+  });
+}
+
 export async function runAgent(
   messages: ConversationMessage[],
   options: AgentLoopOptions,
-): Promise<string> {
-  const inputItems: unknown[] = messages.map((message) => ({
-    role: message.type,
-    content: [
-      {
-        type:
-          message.type === "user"
-            ? "input_text"
-            : "output_text",
-        text: message.text,
-      },
-    ],
-  }));
-
+): Promise<AgentRunResult> {
+  const inputItems: unknown[] = conversationMessagesToInputItems(messages);
+  const newMessages: ConversationMessage[] = [];
   const maximumTurns = options.maximumTurns ?? 20;
 
   for (let turn = 0; turn < maximumTurns; turn++) {
@@ -37,7 +63,11 @@ export async function runAgent(
 
     // No tool calls means the model has finished.
     if (toolCalls.length === 0) {
-      return response.outputText;
+      newMessages.push({ type: "assistant", text: response.outputText });
+      return {
+        answer: response.outputText,
+        newMessages,
+      };
     }
 
     for (const call of toolCalls) {
@@ -55,6 +85,13 @@ export async function runAgent(
         arguments: displayedArguments,
       }, null, 2));
 
+      newMessages.push({
+        type: "tool_call",
+        call_id: call.call_id,
+        name: call.name,
+        arguments: call.arguments,
+      });
+
       const result = await options.executeTool(call);
 
       console.error("[tool -> function_call_output]");
@@ -63,6 +100,13 @@ export async function runAgent(
         name: call.name,
         outputCharacters: result.length,
       }, null, 2));
+
+      newMessages.push({
+        type: "tool_result",
+        call_id: call.call_id,
+        name: call.name,
+        output: result,
+      });
 
       inputItems.push({
         type: "function_call_output",

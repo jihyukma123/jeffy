@@ -7,7 +7,11 @@
 **데이터 형식**
 
 ```text
-ConversationMessage = { type: user 또는 assistant, text: 문자열 }
+ConversationMessage = 
+    | { type: "user", text: 문자열 }
+    | { type: "assistant", text: 문자열 }
+    | { type: "tool_call", call_id: 문자열, name: 문자열, arguments: 문자열 }
+    | { type: "tool_result", call_id: 문자열, name: 문자열, output: 문자열 }
 세션 = { id: 숫자, messages: ConversationMessage 목록 }
 저장 파일 = 세션 폴더/{id}.json
 파일 내용 = messages 배열
@@ -53,8 +57,10 @@ createSessionManager(세션 폴더):
 
     isConversationMessage(값):
         값이 객체이고,
-        type이 user 또는 assistant이고,
-        text가 문자열인지 반환한다
+        - type이 user 또는 assistant이면 text가 문자열인지 확인
+        - type이 tool_call이면 call_id, name, arguments가 문자열인지 확인
+        - type이 tool_result이면 call_id, name, output이 문자열인지 확인
+        위 조건 중 하나를 만족하는지 반환한다
 
     saveSession(세션 ID, messages):
         세션 폴더가 없으면 만든다

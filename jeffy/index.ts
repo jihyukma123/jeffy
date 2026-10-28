@@ -44,13 +44,13 @@ export async function jeffy(options: JeffyOptions): Promise<JeffyResult> {
   session.messages.push({ type: "user", text: options.input });
   await sessionManager.saveSession(session.id, session.messages);
 
-  const answer = await runAgent(session.messages, {
+  const { answer, newMessages } = await runAgent(session.messages, {
     callModel,
     executeTool: toolCalling.executeTool,
     maximumTurns: options.maximumTurns,
   });
 
-  session.messages.push({ type: "assistant", text: answer });
+  session.messages.push(...newMessages);
   await sessionManager.saveSession(session.id, session.messages);
 
   return { sessionId: session.id, answer };

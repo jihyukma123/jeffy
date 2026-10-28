@@ -28,13 +28,13 @@ jeffy(설정):
     세션.messages에 사용자 질문을 추가한다
     세션 관리자.saveSession(세션.id, 세션.messages)
 
-    답변 = runAgent(세션.messages, {
+    { answer: 답변, newMessages } = runAgent(세션.messages, {
         callModel: 모델 호출 함수,
         executeTool: 도구 시스템.executeTool,
         maximumTurns: 설정.maximumTurns
     })
 
-    세션.messages에 assistant 답변을 추가한다
+    세션.messages에 newMessages(도구 호출, 결과, 최종 답변)를 추가한다
     세션 관리자.saveSession(세션.id, 세션.messages)
 
     { sessionId: 세션.id, answer: 답변 }을 반환한다

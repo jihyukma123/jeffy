@@ -1,10 +1,35 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-export type ConversationMessage = {
-  type: "user" | "assistant";
+export type UserMessage = {
+  type: "user";
   text: string;
 };
+
+export type AssistantMessage = {
+  type: "assistant";
+  text: string;
+};
+
+export type ToolCallMessage = {
+  type: "tool_call";
+  call_id: string;
+  name: string;
+  arguments: string;
+};
+
+export type ToolResultMessage = {
+  type: "tool_result";
+  call_id: string;
+  name: string;
+  output: string;
+};
+
+export type ConversationMessage =
+  | UserMessage
+  | AssistantMessage
+  | ToolCallMessage
+  | ToolResultMessage;
 
 export function createSessionManager(
   conversationsDirectory = path.join(process.cwd(), "conversations"),
@@ -50,8 +75,29 @@ export function createSessionManager(
 
   function isConversationMessage(value: unknown): value is ConversationMessage {
     if (!value || typeof value !== "object") return false;
-    const message = value as Record<string, unknown>;
-    return (message.type === "user" || message.type === "assistant") && typeof message.text === "string";
+    const item = value as Record<string, unknown>;
+
+    if (item.type === "user" || item.type === "assistant") {
+      return typeof item.text === "string";
+    }
+
+    if (item.type === "tool_call") {
+      return (
+        typeof item.call_id === "string" &&
+        typeof item.name === "string" &&
+        typeof item.arguments === "string"
+      );
+    }
+
+    if (item.type === "tool_result") {
+      return (
+        typeof item.call_id === "string" &&
+        typeof item.name === "string" &&
+        typeof item.output === "string"
+      );
+    }
+
+    return false;
   }
 
   async function saveSession(sessionId: number, messages: ConversationMessage[]): Promise<void> {
