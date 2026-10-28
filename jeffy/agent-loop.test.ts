@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   conversationMessagesToInputItems,
   runAgent,
+  type AgentEvent,
 } from "./agent-loop.js";
 import type { ModelTurn } from "./llm-client.js";
 import type { ConversationMessage } from "./session-manager.js";
@@ -54,6 +55,7 @@ test("conversationMessagesToInputItems converts all message types for model inpu
 test("runAgent records tool_call, tool_result, and assistant in newMessages trace", async () => {
   const callHistory: unknown[][] = [];
   const toolExecutions: ToolCall[] = [];
+  const events: AgentEvent[] = [];
 
   const callModel = async (inputItems: unknown[]): Promise<ModelTurn> => {
     callHistory.push(JSON.parse(JSON.stringify(inputItems)));
@@ -89,7 +91,11 @@ test("runAgent records tool_call, tool_result, and assistant in newMessages trac
     { type: "user", text: "test.txt 읽어봐" },
   ];
 
-  const result = await runAgent(initialMessages, { callModel, executeTool });
+  const result = await runAgent(initialMessages, {
+    callModel,
+    executeTool,
+    onEvent: (event) => events.push(event),
+  });
 
   assert.equal(result.answer, "파일 내용은 Hello World입니다.");
   assert.equal(toolExecutions.length, 1);
@@ -112,6 +118,42 @@ test("runAgent records tool_call, tool_result, and assistant in newMessages trac
     {
       type: "assistant",
       text: "파일 내용은 Hello World입니다.",
+    },
+  ]);
+
+  assert.deepEqual(events, [
+    { type: "model_start", turn: 1, inputItemCount: 1 },
+    {
+      type: "model_end",
+      turn: 1,
+      outputItemCount: 1,
+      outputTextCharacters: 0,
+    },
+    {
+      type: "tool_start",
+      turn: 1,
+      callId: "call-101",
+      name: "read_file",
+      arguments: '{"path":"test.txt"}',
+    },
+    {
+      type: "tool_end",
+      turn: 1,
+      callId: "call-101",
+      name: "read_file",
+      outputCharacters: 11,
+    },
+    { type: "model_start", turn: 2, inputItemCount: 3 },
+    {
+      type: "model_end",
+      turn: 2,
+      outputItemCount: 0,
+      outputTextCharacters: 22,
+    },
+    {
+      type: "final",
+      turn: 2,
+      answer: "파일 내용은 Hello World입니다.",
     },
   ]);
 });

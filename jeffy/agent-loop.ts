@@ -6,7 +6,40 @@ export type AgentLoopOptions = {
   callModel: (inputItems: unknown[]) => Promise<ModelTurn>;
   executeTool: (call: ToolCall) => Promise<string>;
   maximumTurns?: number;
+  onEvent?: (event: AgentEvent) => void;
 };
+
+export type AgentEvent =
+  | {
+      type: "model_start";
+      turn: number;
+      inputItemCount: number;
+    }
+  | {
+      type: "model_end";
+      turn: number;
+      outputItemCount: number;
+      outputTextCharacters: number;
+    }
+  | {
+      type: "tool_start";
+      turn: number;
+      callId: string;
+      name: string;
+      arguments: string;
+    }
+  | {
+      type: "tool_end";
+      turn: number;
+      callId: string;
+      name: string;
+      outputCharacters: number;
+    }
+  | {
+      type: "final";
+      turn: number;
+      answer: string;
+    };
 
 export type AgentRunResult = {
   answer: string;
@@ -53,8 +86,22 @@ export async function runAgent(
   const newMessages: ConversationMessage[] = [];
   const maximumTurns = options.maximumTurns ?? 20;
 
-  for (let turn = 0; turn < maximumTurns; turn++) {
+  for (let turnIndex = 0; turnIndex < maximumTurns; turnIndex++) {
+    const turn = turnIndex + 1;
+    options.onEvent?.({
+      type: "model_start",
+      turn,
+      inputItemCount: inputItems.length,
+    });
+
     const response = await options.callModel(inputItems);
+
+    options.onEvent?.({
+      type: "model_end",
+      turn,
+      outputItemCount: response.output.length,
+      outputTextCharacters: response.outputText.length,
+    });
 
     // Preserve everything the model produced.
     inputItems.push(...response.output);
@@ -63,6 +110,7 @@ export async function runAgent(
 
     // No tool calls means the model has finished.
     if (toolCalls.length === 0) {
+      options.onEvent?.({ type: "final", turn, answer: response.outputText });
       newMessages.push({ type: "assistant", text: response.outputText });
       return {
         answer: response.outputText,
@@ -71,19 +119,13 @@ export async function runAgent(
     }
 
     for (const call of toolCalls) {
-      let displayedArguments: unknown = call.arguments;
-      try {
-        displayedArguments = JSON.parse(call.arguments) as unknown;
-      } catch {
-        // Keep the original string so malformed arguments are still visible.
-      }
-
-      console.error("\n[model -> tool_call]");
-      console.error(JSON.stringify({
-        call_id: call.call_id,
+      options.onEvent?.({
+        type: "tool_start",
+        turn,
+        callId: call.call_id,
         name: call.name,
-        arguments: displayedArguments,
-      }, null, 2));
+        arguments: call.arguments,
+      });
 
       newMessages.push({
         type: "tool_call",
@@ -94,12 +136,13 @@ export async function runAgent(
 
       const result = await options.executeTool(call);
 
-      console.error("[tool -> function_call_output]");
-      console.error(JSON.stringify({
-        call_id: call.call_id,
+      options.onEvent?.({
+        type: "tool_end",
+        turn,
+        callId: call.call_id,
         name: call.name,
         outputCharacters: result.length,
-      }, null, 2));
+      });
 
       newMessages.push({
         type: "tool_result",

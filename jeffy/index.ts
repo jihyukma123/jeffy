@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { runAgent } from "./agent-loop.js";
+import { runAgent, type AgentEvent } from "./agent-loop.js";
 import { createLlmClient, type LlmClientOptions } from "./llm-client.js";
 import { createSessionManager } from "./session-manager.js";
 import { createToolCallingSystem } from "./tool-calling.js";
@@ -8,6 +8,7 @@ export type JeffyOptions = LlmClientOptions & {
   input: string;
   sessionId?: number | string;
   maximumTurns?: number;
+  onEvent?: (event: AgentEvent) => void;
   workspaceRoot?: string;
   conversationsDirectory?: string;
 };
@@ -48,6 +49,7 @@ export async function jeffy(options: JeffyOptions): Promise<JeffyResult> {
     callModel,
     executeTool: toolCalling.executeTool,
     maximumTurns: options.maximumTurns,
+    onEvent: options.onEvent,
   });
 
   session.messages.push(...newMessages);
