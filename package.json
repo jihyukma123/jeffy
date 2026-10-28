@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file-if-exists=.env.local --import tsx minimal_agent.ts",
-    "test": "node --import tsx --test gateway/src/index.test.ts",
+    "test": "node --import tsx --test jeffy/*.test.ts gateway/src/*.test.ts",
     "typecheck": "tsc --noEmit",
     "gateway:dev": "wrangler dev --config gateway/wrangler.jsonc",
     "gateway:deploy": "wrangler deploy --config gateway/wrangler.jsonc",
